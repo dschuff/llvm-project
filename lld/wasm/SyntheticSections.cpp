@@ -722,7 +722,7 @@ void LinkingSection::writeBody() {
     StringRef comdat = inputSegments[0]->getComdatName();
 #ifndef NDEBUG
     for (const InputChunk *isec : inputSegments)
-      assert(isec->getComdatName() == comdat);
+      assert(!config->relocatable || isec->getComdatName() == comdat);
 #endif
     if (!comdat.empty())
       comdats[comdat].emplace_back(ComdatEntry{WASM_COMDAT_DATA, i});

@@ -105,6 +105,7 @@ uint32_t ObjFile::calcNewIndex(const WasmRelocation &reloc) const {
   const Symbol *sym = symbols[reloc.Index];
   if (auto *ss = dyn_cast<SectionSymbol>(sym))
     sym = ss->getOutputSectionSymbol();
+  //llvm::errs() << "new index: " << sym->getName() << "\n";
   return sym->getOutputSymbolIndex();
 }
 

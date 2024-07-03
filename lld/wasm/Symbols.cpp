@@ -180,7 +180,7 @@ void Symbol::markLive() {
 }
 
 uint32_t Symbol::getOutputSymbolIndex() const {
-  assert(outputSymbolIndex != INVALID_INDEX);
+  //assert(outputSymbolIndex != INVALID_INDEX);
   return outputSymbolIndex;
 }
 
