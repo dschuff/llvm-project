@@ -379,6 +379,7 @@ void WebAssembly::addClangTargetOptions(const ArgList &DriverArgs,
   // Enable necessary features for Wasm EH / SjLj in the backend.
   auto EnableFeaturesForWasmEHSjLj = [&]() {
     static bool HasRun = false;
+    // test
     if (HasRun)
       return;
     CC1Args.push_back("-target-feature");
