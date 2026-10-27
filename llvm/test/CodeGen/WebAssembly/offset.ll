@@ -128,6 +128,15 @@ define i32 @load_i32_global_with_folded_gep_offset_nonconst_nuw(i32 %idx) {
   ret i32 %t
 }
 
+define i32 @load_i32_global_with_nested_folded_gep_offset_nuw(i32 %idx) {
+; CHECK-LABEL: load_i32_global_with_nested_folded_gep_offset_nuw:
+; CHECK: i32.load $push0=, gv+24($0){{$}}
+  %s0 = getelementptr nuw i8, ptr @gv, i32 %idx
+  %s1 = getelementptr nuw i8, ptr %s0, i32 24
+  %t = load i32, ptr %s1
+  ret i32 %t
+}
+
 ;===----------------------------------------------------------------------------
 ; Loads: 64-bit
 ;===----------------------------------------------------------------------------
