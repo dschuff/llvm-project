@@ -503,28 +503,58 @@ bool WebAssemblyDAGToDAGISel::SelectAddrAddOperands(MVT OffsetType, SDValue N,
   if (N.getOpcode() == ISD::ADD && !N.getNode()->getFlags().hasNoUnsignedWrap())
     return false;
 
+  // Combine two folded offsets (two constants, or a non-function global
+  // address with a non-negative offset and a constant) from nested nuw adds
+  // that DAGCombiner may leave unassociated across loop-invariant expressions.
+  auto CombineOffsets = [&](SDValue A, SDValue B) -> SDValue {
+    if (isa<GlobalAddressSDNode>(A) && isa<ConstantSDNode>(B))
+      std::swap(A, B);
+    if (auto *CNA = dyn_cast<ConstantSDNode>(A)) {
+      if (auto *CNB = dyn_cast<ConstantSDNode>(B))
+        return CurDAG->getTargetConstant(
+            CNA->getZExtValue() + CNB->getZExtValue(), SDLoc(N), OffsetType);
+      if (auto *GA = dyn_cast<GlobalAddressSDNode>(B)) {
+        if (!isa<Function>(GA->getGlobal()) && GA->getOffset() >= 0 &&
+            (OffsetType != MVT::i32 ||
+             (uint64_t)GA->getOffset() + CNA->getZExtValue() <= UINT32_MAX))
+          return CurDAG->getTargetGlobalAddress(
+              GA->getGlobal(), SDLoc(N), OffsetType,
+              GA->getOffset() + CNA->getZExtValue(), GA->getTargetFlags());
+      }
+    }
+    return SDValue();
+  };
+
   for (size_t i = 0; i < 2; ++i) {
     SDValue Op = N.getOperand(i);
     SDValue OtherOp = N.getOperand(i == 0 ? 1 : 0);
 
-    // Folds constants in an add into the offset.
+    SDValue CurrOffset;
     if (ConstantSDNode *CN = dyn_cast<ConstantSDNode>(Op)) {
-      Offset =
+      CurrOffset =
           CurDAG->getTargetConstant(CN->getZExtValue(), SDLoc(N), OffsetType);
-      Addr = OtherOp;
-      return true;
-    }
-
-    // Fold target global addresses into the offset.
-    if (!TM.isPositionIndependent()) {
+    } else if (!TM.isPositionIndependent()) {
       if (Op.getOpcode() == WebAssemblyISD::Wrapper)
         Op = Op.getOperand(0);
+      if (Op.getOpcode() == ISD::TargetGlobalAddress)
+        CurrOffset = Op;
+    }
 
-      if (Op.getOpcode() == ISD::TargetGlobalAddress) {
-        Addr = OtherOp;
-        Offset = Op;
-        return true;
+    if (CurrOffset) {
+      if (OtherOp.getOpcode() == ISD::ADD) {
+        SDValue InnerOffset, InnerAddr;
+        if (SelectAddrAddOperands(OffsetType, OtherOp, InnerOffset,
+                                  InnerAddr)) {
+          if (SDValue Combined = CombineOffsets(CurrOffset, InnerOffset)) {
+            Offset = Combined;
+            Addr = InnerAddr;
+            return true;
+          }
+        }
       }
+      Offset = CurrOffset;
+      Addr = OtherOp;
+      return true;
     }
   }
   return false;
